@@ -1,0 +1,8 @@
+Look carefully at this image before deciding. First describe in one sentence what you see: for cables, how many wires there are, their order, any bends, and the condition of the insulation; for bottles, any cracks, chips, or contamination; for carpet, any cuts, holes, loose threads, stains, or color changes. A defect can be subtle: a wire that is bent, missing, swapped out of order, or has damaged insulation counts as a defect even if the image looks normal at first glance.
+
+Decide based on what you can actually see. Only call it a defect if you can point to something specific that is wrong; do not guess, and do not dismiss something you can see. If you cannot find anything specific, say there is no defect.
+
+Return JSON only, no other text:
+{"observation": "<one sentence describing what you see>", "has_defect": true, "box": [x_min, y_min, x_max, y_max], "type": "...", "severity": "minor|moderate|severe"}
+Coordinates are 0-1000, origin top-left. If no defect, return JSON only:
+{"observation": "<one sentence describing what you see>", "has_defect": false}

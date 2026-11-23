@@ -1,0 +1,5 @@
+# Only needed for the PatchCore baseline (src/run_patchcore.py).
+# The VLM arm (src/run_vlm_batch.py) does not need torch.
+# Install with: pip install -r requirements-baseline.txt
+torch>=2.0
+torchvision>=0.15

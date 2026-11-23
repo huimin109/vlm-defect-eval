@@ -1,0 +1,4 @@
+Is there a defect in this image? If yes, return JSON only, no other text:
+{"has_defect": true, "box": [x_min, y_min, x_max, y_max], "type": "...", "severity": "minor|moderate|severe"}
+Coordinates are 0-1000, origin top-left. If no defect, return JSON only:
+{"has_defect": false}

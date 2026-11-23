@@ -1,0 +1,6 @@
+You will see several images. All images except the LAST one are reference images of NORMAL, defect-free products. The LAST image is the test image you must judge.
+
+Compare the test image against the normal references. Is there a defect in the LAST (test) image? If yes, return JSON only, no other text:
+{"has_defect": true, "box": [x_min, y_min, x_max, y_max], "type": "...", "severity": "minor|moderate|severe"}
+Coordinates are 0-1000, origin top-left, and refer to the LAST (test) image only. If no defect, return JSON only:
+{"has_defect": false}
