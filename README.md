@@ -19,9 +19,13 @@ to something specific lands between them — recall 0.676, hallucination
 0.142. A hybrid that lets PatchCore decide and calls the VLM only on
 images whose PatchCore score sits near the threshold ties PatchCore on
 accuracy (0.923 vs 0.920) while cutting hallucination in half
-(0.057 vs 0.132) — an operating-point change, not a win. Prompting
-moves the trade-off; it does not fix the capability gap. The failure
-analysis below is the interesting part.
+(0.057 vs 0.132) — an operating-point change, not a win. A few-shot
+arm (2026-11-23) that shows three normal cable images before each test
+image did not fix cable either: it pushed the operating point to the
+far end — recall 1.000, hallucination 0.810, accuracy 0.687, worse
+than PatchCore's 0.853 on cable. Prompting moves the trade-off; it
+does not fix the capability gap. The failure analysis below is the
+interesting part.
 
 ## Dataset
 
@@ -89,6 +93,13 @@ file, so this evaluation is free and offline. Bands tried: ±0.03,
 ±0.05, ±0.08, ±0.12, each with v1 (conservative judge), v2
 (aggressive judge), and v3 (balanced judge).
 
+**Few-shot (`src/run_vlm_fewshot.py`, prompt
+`prompts/defect_fewshot.txt`)** — cable only, 150 test images. Before
+each test image the model is shown K=3 normal cable train images
+(`data/cable/train/good/000.png`, `001.png`, `002.png`) as a reference
+for the correct wire arrangement, then the same v1 JSON output format.
+Four images per API call, so ~4× the v1 cost per image.
+
 ## Results (2026-11-12, full 350 images)
 
 | run | n | accuracy | hallucination | mean IoU | IoU ≥ 0.5 | latency (s) | cost / 1k |
@@ -137,6 +148,17 @@ Wider bands are worse for every judge; the narrowest band is best.
 | gpt-4o-mini v3 — bottle | 83 | 0.783 | 0.550 | 0.175 | 0.032 |
 | gpt-4o-mini v3 — carpet | 117 | 0.957 | 0.000 | 0.036 | 0.000 |
 | gpt-4o-mini v3 — cable | 150 | 0.527 | 0.069 | 0.067 | 0.043 |
+
+### Few-shot: three normal cable references (2026-11-23, cable only)
+
+| run | n | accuracy | hallucination | mean IoU | IoU ≥ 0.5 | latency (s) | cost / 1k |
+|---|---|---|---|---|---|---|---|
+| gpt-4o-mini few-shot, cable | 150 | 0.687 | 0.810 | 0.195 | 0.065 | 3.21 | $15.34 |
+| PatchCore — cable (for reference) | 150 | **0.853** | 0.172 | 0.363 | 0.380 | 0.06 | $0.00 |
+
+Few-shot cable: TP=92, FP=47, TN=11, FN=0, precision=0.662,
+recall=1.000, F1=0.797, miss rate 0.000. Total cost **$2.3017**
+(measured ~$0.01535/image, ~4× v1 — four images per call).
 
 ## Failure analysis
 
@@ -191,6 +213,26 @@ accuracy, 0.000 hallucination, recall ~0.944). The cleanest statement
 of the gap: at v3's hallucination rate (0.142, essentially PatchCore's
 0.132), PatchCore's recall is 0.943 against the VLM's 0.676.
 
+**Few-shot with normal-only references does not teach the
+arrangement; it makes the model hypersensitive.** Showing three
+normal cable images before each test image was meant to give the
+model a reference for the correct wire arrangement — the thing v1
+was missing. Instead the model treated any deviation from those
+three specific examples as a defect: recall went to 1.000 (FN 0,
+every defective cable caught, including the structural types v1
+missed entirely) but 47 of the 58 good cables were flagged too
+(hallucination 0.810, TN only 11). Accuracy 0.687 is worse than
+PatchCore's cable accuracy (0.853) and barely above v2's cable
+accuracy (0.673); F1 0.797 sits below v2's full-run F1 (0.849).
+Mean IoU 0.195 is the best VLM localization measured so far, but
+that is confounded by flagging nearly everything. In trade-off
+terms, few-shot is one more point on the same curve — the most
+extreme one yet, past v2. The reference images changed the
+model's threshold for "different", not its understanding of
+"wrong". A reference only helps if the model can compare
+structurally; three normal examples give it something to differ
+from, not something to reason about.
+
 **The hybrid ties; it does not win.** On PatchCore's 28 errors the
 VLM (v1) would correct 16 — all 14 false positives and 2 false
 negatives — which suggests an oracle hybrid of 338/350 = 0.966.
@@ -229,10 +271,11 @@ accuracy (0.923 vs 0.920) with hallucination more than halved
 (0.057 vs 0.132): worth it where a false alarm is expensive, not
 where a miss is.
 
-Next steps: the prompt curve is now complete and the hybrid is
-measured, so the remaining experiments should change the information
-the model gets, not the wording — a few-shot arm that shows one or two
-normal cable images as a reference for the correct wire arrangement,
+Next steps: the prompt curve is now complete, the hybrid is
+measured, and the few-shot arm is done (negative result), so the
+remaining experiments should change the information the model gets
+in a different way, not the wording — defective-example references
+(a contrastive pair: one normal, one defective of the same type),
 or a larger VLM to test whether the capability ceiling itself moves.
 
 ## Reproduce
@@ -276,6 +319,13 @@ python -m src.run_vlm_batch --manifest results/manifest.jsonl \
     --prompt-file prompts/defect_v3.txt
 python -m src.evaluate --run results/runs/gpt-4o-mini_v3.jsonl \
     --out results/comparison_gpt-4o-mini_v3.md
+
+# 3e. VLM arm, few-shot cable (K=3 normal references before each test image)
+python -m src.run_vlm_fewshot --manifest results/manifest.jsonl \
+    --data-root data --category cable --num-refs 3 \
+    --out results/runs/gpt-4o-mini_fewshot_cable.jsonl
+python -m src.evaluate --run results/runs/gpt-4o-mini_fewshot_cable.jsonl \
+    --out results/comparison_fewshot_cable.md
 
 # 4. Hybrid: re-run PatchCore with scores saved, then evaluate offline
 python -m src.run_patchcore --root data --categories bottle carpet cable \
